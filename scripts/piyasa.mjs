@@ -416,7 +416,8 @@ async function kalshi() {
 
 // Kalshi fiyat piyasaları (gün içi): "bugün 17:00 ET'de fiyat X'in üstünde mi" merdivenleri. Varlık başına aday seriler (ilk çalışan);
 // açık olaylardan önce New York 17:00 kapanışlı en yakını, yoksa en yakın kapanış. Uygulama ortanca ve olasılık çıkarır.
-const KALSHI_FIYAT = { BTC: ["KXBTCD"], ETH: ["KXETHD"], SPY: ["KXINXU", "KXINX"], QQQ: ["KXNASDAQ100U", "KXNASDAQ100"], XAU: ["KXGOLDD", "KXGOLD"] };
+const KALSHI_FIYAT = { BTC: ["KXBTCD"], ETH: ["KXETHD"], SPY: ["KXINXU", "KXINX"], QQQ: ["KXNASDAQ100U", "KXNASDAQ100"], XAU: ["KXGOLDD", "KXGOLD", "GOLD"] };
+const KALSHI_SAAT = { BTC: 17, ETH: 17, SPY: 16, QQQ: 16, XAU: 17 };              // New York saati: kripto 17:00, endeks kapanışı 16:00
 async function kalshiFiyat() {
   const n = v => v == null || v === "" ? null : +v;
   const fiyat = (m, c, dl) => { const a = n(m[dl]); if (a != null) return a; const x = n(m[c]); return x != null ? x / 100 : null; };
@@ -431,11 +432,11 @@ async function kalshiFiyat() {
           return { e, t, ms }; }).filter(o => isFinite(o.t) && o.t > NOW + 10 * 60000 && o.ms.length >= 5).sort((a, b) => a.t - b.t);
         if (!L.length) continue;
         const etSaat = t => +new Date(t).toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false });
-        const sec = L.find(o => etSaat(o.t) === 17 && o.t - NOW < 36 * 3600e3) || L[0];
+        const sec = L.find(o => etSaat(o.t) === (KALSHI_SAAT[k] || 17) && o.t - NOW < 36 * 3600e3) || L[0];
         out[k] = { seri: tk, baslik: sec.e.title, t: sec.t,
           piyasalar: sec.ms.map(m => ({ alt: m.yes_sub_title || m.subtitle || m.title, tip: m.strike_type || null,
             alt_sinir: m.floor_strike != null ? +m.floor_strike : null, ust_sinir: m.cap_strike != null ? +m.cap_strike : null, p: pr(m), hacim: n(m.volume) || n(m.volume_fp) || 0 }))
-            .filter(m => m.p != null).slice(0, 80) };
+            .filter(m => m.p != null && m.p > 0.01 && m.p < 0.99).slice(0, 120) };
         break;
       } catch (e) { }
     }
