@@ -154,7 +154,8 @@ function summarize(S, cs, mult) {
     const key = c.exp + "|" + c.K, t = tb[key] || (tb[key] = [cE.indexOf(c.exp), +c.K.toFixed(2), 0, 0, null, null]);
     if (c.type === "C") { t[2] += c.oi; t[4] = +(c.iv * 100).toFixed(1); } else { t[3] += c.oi; t[5] = +(c.iv * 100).toFixed(1); }
   }
-  const uzak = win.filter(c => c.exp - NOW > 14 * DAY).reduce((a, c) => a + (c.type === "C" ? 1 : -1) * bsGamma(S, c.K, (c.exp - NOW) / (365 * DAY), c.iv) * c.oi * mult * S * S * 0.01, 0);
+  // Tablo dışındakiler (14 günden uzak ya da bant dışı strike) sabit kabul edilir: tablo + uzak = toplam GEX
+  const uzak = win.filter(c => c.exp - NOW > 14 * DAY || Math.abs(c.K / S - 1) > bant).reduce((a, c) => a + (c.type === "C" ? 1 : -1) * bsGamma(S, c.K, (c.exp - NOW) / (365 * DAY), c.iv) * c.oi * mult * S * S * 0.01, 0);
   const canli = { s0: r2(S), m: mult, e: cE, uzak: Math.round(uzak),
     r: Object.values(tb).map(t => [t[0], t[1], Math.round(t[2] * 100) / 100, Math.round(t[3] * 100) / 100, t[4], t[5]]) };
   return { spot: r2(S), yakin: near, hafta, ay, gulus, vadeler, canli,
