@@ -1,0 +1,4 @@
+node_modules/
+*.prev.json
+opsiyon.json
+piyasa.json

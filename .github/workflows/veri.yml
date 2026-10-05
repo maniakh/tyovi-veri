@@ -1,0 +1,41 @@
+# tyovi piyasa verisi: 10 dakikada bir opsiyon özeti (Deribit, CBOE: SPY+SPX, QQQ+NDX, GLD, büyük şirketler), ekonomik takvim,
+# ETF akışları, haber başlıkları, Kalshi olasılıkları, VIX vade yapısı, Hyperliquid balina listesi. Yalnız herkese açık piyasa verisi;
+# kişisel veri yok. Sonuç "veri" dalına tek dosyalar olarak zorla yazılır (geçmiş birikmez).
+name: veri
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: veri
+  cancel-in-progress: false
+jobs:
+  topla:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Opsiyon verisi
+        run: node scripts/opsiyon.mjs
+      - name: Piyasa verisi (takvim, ETF, haber, gündem, Kalshi, VIX, Hyperliquid)
+        continue-on-error: true
+        run: |
+          git fetch -q --depth=1 origin veri && git show origin/veri:piyasa.json > piyasa.prev.json || true
+          node scripts/piyasa.mjs
+      - name: veri dalına yaz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/veri && cp opsiyon.json /tmp/veri/ && (cp piyasa.json /tmp/veri/ || true)
+          cd /tmp/veri
+          git init -q -b veri
+          git config user.name "tyovi-veri"
+          git config user.email "veri@users.noreply.github.com"
+          git add opsiyon.json $(ls piyasa.json 2>/dev/null)
+          git commit -q -m "veri $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" veri
