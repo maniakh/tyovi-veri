@@ -427,7 +427,7 @@ async function kalshiFiyat() {
   for (const [k, adaylar] of Object.entries(KALSHI_FIYAT)) {
     for (const tk of adaylar) {
       try {
-        const j = await get(KALSHI[0] + "/events?series_ticker=" + tk + "&status=open&with_nested_markets=true&limit=40", "json", 20000);
+        const j = await get(KALSHI[0] + "/events?series_ticker=" + tk + "&status=open&with_nested_markets=true&limit=200", "json", 30000);
         const L = (j.events || []).map(e => { const ms = e.markets || []; const t = Date.parse((ms[0] && (ms[0].close_time || ms[0].expected_expiration_time)) || e.strike_date || "");
           return { e, t, ms }; }).filter(o => isFinite(o.t) && o.t > NOW + 10 * 60000 && o.ms.length >= 5).sort((a, b) => a.t - b.t);
         if (!L.length) continue;
