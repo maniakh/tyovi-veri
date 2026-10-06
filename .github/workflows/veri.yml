@@ -1,5 +1,5 @@
 # tyovi piyasa verisi: 10 dakikada bir opsiyon özeti (Deribit, CBOE: SPY+SPX, QQQ+NDX, GLD, büyük şirketler), ekonomik takvim,
-# ETF akışları, haber başlıkları, Kalshi olasılıkları, VIX vade yapısı, Hyperliquid balina listesi. Yalnız herkese açık piyasa verisi;
+# ETF akışları, haber başlıkları, Kalshi olasılıkları, VIX vade yapısı, Hyperliquid balina listesi ve hareketleri, telefon uyarıları. Yalnız herkese açık piyasa verisi;
 # kişisel veri yok. Sonuç "veri" dalına tek dosyalar olarak zorla yazılır (geçmiş birikmez).
 name: veri
 on:
@@ -27,15 +27,23 @@ jobs:
         run: |
           git fetch -q --depth=1 origin veri && git show origin/veri:piyasa.json > piyasa.prev.json || true
           node scripts/piyasa.mjs
+      - name: Uyarılar (balina hareketleri, kritik haber; telefonun arka plan görevi okur)
+        continue-on-error: true
+        run: |
+          git fetch -q --depth=1 origin veri || true
+          git show origin/veri:balina.json > balina.prev.json 2>/dev/null || rm -f balina.prev.json
+          git show origin/veri:balina-snap.json > balina-snap.prev.json 2>/dev/null || rm -f balina-snap.prev.json
+          node scripts/uyari.mjs
       - name: veri dalına yaz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p /tmp/veri && cp opsiyon.json /tmp/veri/ && (cp piyasa.json /tmp/veri/ || true)
+          mkdir -p /tmp/veri && cp opsiyon.json /tmp/veri/
+          for f in piyasa.json balina.json balina-snap.json uyari.json; do [ -f "$f" ] && cp "$f" /tmp/veri/ || true; done
           cd /tmp/veri
           git init -q -b veri
           git config user.name "tyovi-veri"
           git config user.email "veri@users.noreply.github.com"
-          git add opsiyon.json $(ls piyasa.json 2>/dev/null)
+          git add -A
           git commit -q -m "veri $(date -u +%Y-%m-%dT%H:%MZ)"
           git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" veri
