@@ -1,6 +1,7 @@
 // tyovi — piyasa toplayıcı. Opsiyon işinin içinde çalışır (ek GitHub Actions dakikası harcamaz), Claude kullanmaz.
 // Çıktı: piyasa.json ("veri" dalına yazılır; uygulama GitHub API ile okur).
-//  - takvim: ForexFactory haftalık takvimi (açık JSON) — ABD yüksek + orta etkili, diğer büyükler yalnızca yüksek; beklenti/önceki
+//  - takvim: ForexFactory haftalık takvimi (açık JSON) — ABD yüksek + orta etkili ve tüm ABD konuşmaları, diğer büyükler yalnızca yüksek;
+//    beklenti/önceki; + Trump'ın programı (Factbase: konuşma, basın toplantısı, ulusa sesleniş…; tur "konusma")
 //  - etf: spot Bitcoin ve Ethereum ETF günlük net akışı (CoinMarketCap açık veri ucu; BTC için yedek Bitbo tablosu, sayfadan)
 //  - makro: 10Y reel faiz (ABD Hazinesi reel getiri eğrisi CSV'si, yedek FRED DFII10; anahtarsız); son değer ve 5 iş günü değişimi (bp)
 //  - gundem: TradingView ekonomik takvimi (gerçek/beklenti/önceki, son 3 gün + 10 gün; Origin başlığıyla), yüksek etkili ABD
@@ -41,6 +42,9 @@ const OLAY = [
   [/^FOMC Meeting Minutes$/, "FOMC tutanakları"], [/^FOMC Economic Projections$/, "FOMC projeksiyonları"],
   [/^Fed Chair (.+) Speaks$/, "Fed Başkanı $1 konuşuyor"], [/^FOMC Member (.+) Speaks$/, "FOMC üyesi $1 konuşuyor"],
   [/^ECB President (.+) Speaks$/, "ECB Başkanı $1 konuşuyor"], [/^BOE Gov (.+) Speaks$/, "BoE Başkanı $1 konuşuyor"],
+  [/^BOJ Gov (.+) Speaks$/, "BoJ Başkanı $1 konuşuyor"], [/^President (.+) Speaks$/, "Başkan $1 konuşuyor"],
+  [/^Treasury Sec(retary)? (.+) Speaks$/, "Hazine Bakanı $2 konuşuyor"], [/^Fed Chair (.+) Testifies$/, "Fed Başkanı $1 Kongre'de"],
+  [/^FOMC Member (.+) Testifies$/, "FOMC üyesi $1 Kongre'de"],
   [/^Main Refinancing Rate$/, "ECB faiz kararı"], [/^Official Bank Rate$/, "BoE faiz kararı"], [/^BOJ Policy Rate$/, "BoJ faiz kararı"],
   [/^ISM Manufacturing PMI$/, "ISM imalat PMI"], [/^ISM Services PMI$/, "ISM hizmet PMI"],
   [/^Flash Manufacturing PMI$/, "İmalat PMI (öncü)"], [/^Flash Services PMI$/, "Hizmet PMI (öncü)"],
@@ -59,6 +63,40 @@ function olayAdi(t) {
   for (const [re, tr] of OLAY) if (re.test(kok)) return DONEM(kok.replace(re, tr) + ek);
   return t;
 }
+// Konuşmalar (2026-10-06, kullanıcı: "bugün Trump konuşma yapacak falan, onlar hiç çıkmıyor; ileriye dönük önemli, oynaklığı artırır"):
+// ForexFactory'de ABD'nin tüm konuşmaları (Fed üyeleri dahil; düşük etkililer "orta") + Trump'ın programı (Roll Call Factbase,
+// media-cdn.factba.se açık JSON, saatler Doğu ABD): konuşma, basın toplantısı, ulusa sesleniş yüksek; imza töreni, röportaj, ikili
+// görüşme orta; basına kapalı olanlar bir kademe düşük. Kayıtta tur: "konusma", detay (İngilizce özgün), basin.
+const KONUS = /speaks|testifies|speech|press conference/i;
+function etUtc(gun, saat) {                                          // "2026-10-06" + "16:00:00" (Doğu ABD) → UTC ms
+  const [y, m, d] = gun.split("-").map(Number), [hh, mm] = String(saat).split(":").map(Number);
+  const ilk = (ay, kac) => { const w = new Date(Date.UTC(y, ay, 1)).getUTCDay(); return 1 + (7 - w) % 7 + 7 * (kac - 1); };
+  const yerel = Date.UTC(y, m - 1, d, hh || 0, mm || 0);
+  const yaz = yerel >= Date.UTC(y, 2, ilk(2, 2), 2) && yerel < Date.UTC(y, 10, ilk(10, 1), 2);
+  return yerel + (yaz ? 4 : 5) * 36e5;
+}
+const BASIN = { "Open Press": "basına açık", "Closed Press": "basına kapalı", "Pre-Credentialed Media": "akreditasyonlu basın", "Out-of-Town Travel Pool": "seyahat havuzu", "In-Town Pool": "basın havuzu" };
+async function trumpTakvim() {
+  const L = await get("https://media-cdn.factba.se/rss/json/trump/calendar-full.json", "json", 30000), out = [];
+  for (const e of L || []) {
+    if (!e || e.type !== "President Schedule" || !e.time || !e.date || e.date < new Date(NOW - DAY).toISOString().slice(0, 10)) continue;
+    const d = String(e.details || "");
+    if (/pool call|executive time|policy meeting|lunch|\blid\b|departs|arrives|^TBD/i.test(d)) continue;
+    let ad = null, yuksek = false;
+    if (/address(es)? to the nation|addresses the nation|oval office address|joint session/i.test(d)) { ad = "Trump ulusa sesleniş"; yuksek = true; }
+    else if (/press conference|news conference|press gaggle|takes questions/i.test(d)) { ad = "Trump basın toplantısı"; yuksek = true; }
+    else if (/remarks|speech|speaks|keynote|addresses|delivers an address/i.test(d)) { ad = "Trump konuşması"; yuksek = true; }
+    else if (/signs?\b|executive order|proclamation/i.test(d)) ad = "Trump imza töreni";
+    else if (/interview/i.test(d)) ad = "Trump röportajı";
+    else if (/bilateral|meets with (the )?(president|prime minister|chancellor|king|crown prince|general secretary)/i.test(d)) ad = "Trump ikili görüşme";
+    if (!ad) continue;
+    const t = etUtc(e.date, e.time), kapali = /closed/i.test(e.coverage || "");
+    if (!(t > NOW - DAY && t < NOW + 4 * DAY)) continue;
+    out.push({ t, ad: "ABD · " + ad, etki: yuksek && !kapali ? "high" : "medium", ulke: "USD", beklenti: null, onceki: null, tur: "konusma",
+      detay: d.replace(/^The President (and The First Lady )?/i, "").slice(0, 120), basin: BASIN[e.coverage] || e.coverage || "", kaynak: "Factbase" });
+  }
+  return out;
+}
 async function takvim() {
   const all = [];
   for (const w of ["thisweek", "nextweek"]) {
@@ -66,11 +104,15 @@ async function takvim() {
     catch (e) { if (w === "thisweek") hatalar.push("takvim: " + e.message); }
   }
   const seen = {};
-  return all.filter(e => e.impact === "High" || (e.impact === "Medium" && e.country === "USD"))
-    .map(e => ({ t: Date.parse(e.date), ad: (ULKE[e.country] || e.country) + " · " + olayAdi(e.title), etki: e.impact === "High" ? "high" : "medium",
-      ulke: e.country, beklenti: e.forecast || null, onceki: e.previous || null }))
-    .filter(e => isFinite(e.t) && e.t > NOW - 2 * DAY && !seen[e.t + e.ad] && (seen[e.t + e.ad] = 1))
-    .sort((a, b) => a.t - b.t);
+  const ff = all.filter(e => e.impact === "High" || (e.impact === "Medium" && e.country === "USD") || (e.country === "USD" && KONUS.test(e.title)))
+    .map(e => Object.assign({ t: Date.parse(e.date), ad: (ULKE[e.country] || e.country) + " · " + olayAdi(e.title), etki: e.impact === "High" ? "high" : "medium",
+      ulke: e.country, beklenti: e.forecast || null, onceki: e.previous || null }, KONUS.test(e.title) ? { tur: "konusma", kaynak: "ForexFactory" } : {}))
+    .filter(e => isFinite(e.t) && e.t > NOW - 2 * DAY && !seen[e.t + e.ad] && (seen[e.t + e.ad] = 1));
+  let tr = [];
+  try { tr = await trumpTakvim(); } catch (e) { hatalar.push("trump takvimi: " + e.message); }
+  // ForexFactory'de aynı saatlerde (±60 dk) "President Trump Speaks" varsa Factbase kaydı eklenmez
+  tr = tr.filter(x => !ff.some(f => /Trump|Başkan/.test(f.ad) && Math.abs(f.t - x.t) <= 36e5));
+  return ff.concat(tr).sort((a, b) => a.t - b.t);
 }
 
 // ---- Spot ETF akışları ----
@@ -459,7 +501,7 @@ async function main() {
   const Z = (prevAll && prevAll.zaman) || {}, taze = (k, ms) => prevAll && Z[k] && NOW - Z[k] < ms, zaman = Object.assign({}, Z);
   const tut = (k, ms, f, eski) => taze(k, ms) && eski != null ? Promise.resolve(eski) : f().then(v => { zaman[k] = NOW; return v; });
   const P0 = prevAll || {};
-  let [tk, ef, hb, mk, gd] = await Promise.all([tut("takvim", 60 * 60000, takvim, P0.takvim).catch(e => { hatalar.push("takvim: " + e.message); return []; }),
+  let [tk, ef, hb, mk, gd] = await Promise.all([tut("takvim", 30 * 60000, takvim, P0.takvim).catch(e => { hatalar.push("takvim: " + e.message); return []; }),
     tut("etf", 60 * 60000, etf, P0.etf), tut("haber", 20 * 60000, haber, P0.haber),
     tut("makro", 3 * 36e5, makro, P0.makro).catch(e => { hatalar.push("fred: " + e.message); return null; }),
     gundem(prevAll && prevAll.gundem).catch(e => { hatalar.push("gundem: " + e.message); return prevAll && prevAll.gundem || null; })]);
