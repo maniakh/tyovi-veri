@@ -485,14 +485,17 @@ async function kalshiFiyat() {
   }
   return out;
 }
-// Hyperliquid balinaları: son gün işlem yapmış, hesabı ≥ 1 mn $ olan en büyük 200 hesap (pozisyonları uygulama canlı okur). Günde bir.
+// Hyperliquid balinaları (pozisyonları uygulama canlı okur; günde bir): hesabı ≥ 1 mn $, son hafta işlem yapmış (yalnız "bugün"
+// işlem yapanlar seçilince pozisyonunu günlerce tutan büyükler dışarıda kalıyordu), en büyük 250 hesap. Piyasa yapıcı / yüksek
+// frekanslı hesaplar çıkar (aylık hacim > 50 × hesap değeri; 2026-10-08: en büyük 200'ün 39'u, pozisyonları yön değil stok).
 async function hlAdres() {
   const j = await get("https://stats-data.hyperliquid.xyz/Mainnet/leaderboard", "json", 60000);
   const w = (x, k) => +(((x.windowPerformances || []).find(p => p[0] === k) || [0, {}])[1].vlm || 0);
-  const L = (j.leaderboardRows || []).map(x => ({ a: x.ethAddress, v: +x.accountValue, d: w(x, "day") })).filter(x => x.a && x.v >= 1e6 && x.d > 0)
-    .sort((a, b) => b.v - a.v).slice(0, 200);
+  const L = (j.leaderboardRows || []).map(x => ({ a: x.ethAddress, v: +x.accountValue, h: w(x, "week"), m: w(x, "month") }))
+    .filter(x => x.a && x.v >= 1e6 && x.h > 0 && x.m <= 50 * x.v)
+    .sort((a, b) => b.v - a.v).slice(0, 250);
   if (L.length < 20) throw new Error("az hesap " + L.length);
-  return { at: NOW, adres: L.map(x => x.a) };
+  return { at: NOW, s: 2, adres: L.map(x => x.a) };
 }
 async function main() {
   let prevAll = null; try { prevAll = JSON.parse(fs.readFileSync("piyasa.prev.json", "utf8")); } catch (e) {}
@@ -506,7 +509,7 @@ async function main() {
     tut("makro", 3 * 36e5, makro, P0.makro).catch(e => { hatalar.push("fred: " + e.message); return null; }),
     gundem(prevAll && prevAll.gundem).catch(e => { hatalar.push("gundem: " + e.message); return prevAll && prevAll.gundem || null; })]);
   let ev = null; try { ev = await tut("evds", 6 * 36e5, evds, P0.evds); } catch (e) { hatalar.push("evds: " + e.message); }
-  let hl = null; try { hl = await tut("hl", 24 * 36e5, hlAdres, P0.hl); } catch (e) { hatalar.push("hl: " + e.message); hl = P0.hl || null; }
+  let hl = null; try { hl = await tut("hl", 24 * 36e5, hlAdres, P0.hl && P0.hl.s === 2 ? P0.hl : null); } catch (e) { hatalar.push("hl: " + e.message); hl = P0.hl || null; }
   const [bb, vx, kl] = await Promise.all([tut("basabas", 3 * 36e5, basabas, P0.basabas).catch(e => { hatalar.push("başabaş: " + e.message); return prevAll && prevAll.basabas || null; }),
     vixVade().catch(e => { hatalar.push("vix: " + e.message); return prevAll && prevAll.vix || null; }),
     kalshi().catch(e => { hatalar.push("kalshi: " + e.message); return null; })]);
