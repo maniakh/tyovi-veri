@@ -72,7 +72,7 @@ async function balinalar(hatalar) {
 
 function haberler() {
   const out = [], H = P.haber || {};
-  for (const k of ["BTC", "XAU", "ETH", "SPY", "QQQ"]) {
+  for (const k of ["BTC", "XAU", "ETH", "BIST"]) {                 // v1.49.1: S&P / Nasdaq yok
     const c = (H[k] || []).filter(x => NOW - x.t <= 60 * 60000 && NEWS_CRIT.test(x.baslik) && ton(x.baslik) !== 0)[0];
     if (c) out.push({ k, t: c.t, baslik: c.baslik, kaynak: c.kaynak || "" });
   }

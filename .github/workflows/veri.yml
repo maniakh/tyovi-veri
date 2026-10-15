@@ -1,5 +1,5 @@
-# tyovi piyasa verisi: 10 dakikada bir opsiyon özeti (Deribit, CBOE: SPY+SPX, QQQ+NDX, GLD, büyük şirketler), ekonomik takvim,
-# ETF akışları, haber başlıkları, Kalshi olasılıkları, VIX vade yapısı, Hyperliquid balina listesi ve hareketleri, telefon uyarıları. Yalnız herkese açık piyasa verisi;
+# tyovi piyasa verisi: 10 dakikada bir opsiyon özeti (Deribit BTC/ETH, CBOE GLD), ekonomik takvim, ETF akışları, haber başlıkları,
+# Kalshi olasılıkları, Hyperliquid balina listesi ve hareketleri, telefon uyarıları. v1.49.1: S&P / Nasdaq / ABD hisseleri yok. Yalnız herkese açık piyasa verisi;
 # kişisel veri yok. Sonuç "veri" dalına tek dosyalar olarak zorla yazılır (geçmiş birikmez).
 name: veri
 on:
@@ -22,7 +22,7 @@ jobs:
           node-version: "20"
       - name: Opsiyon verisi
         run: node scripts/opsiyon.mjs
-      - name: Piyasa verisi (takvim, ETF, haber, gündem, Kalshi, VIX, Hyperliquid)
+      - name: Piyasa verisi (takvim, ETF, haber, gündem, Kalshi, Hyperliquid)
         continue-on-error: true
         run: |
           git fetch -q --depth=1 origin veri && git show origin/veri:piyasa.json > piyasa.prev.json || true

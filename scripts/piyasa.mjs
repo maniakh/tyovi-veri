@@ -211,11 +211,7 @@ const KONU = {
     re: /bitcoin|\bbtc\b|crypto|digital assets?|stablecoin|tokeniz|blockchain/i },
   ETH: { gn: [gnSite("ethereum", S_KRIPTO)], akis: [["coindesk"], ["theblock"]], re: /ethereum|\beth\b|\bether\b|staking|layer[- ]?2|defi|tokeniz|stablecoin|crypto/i },
   XAU: { gn: [gnSite("gold price", S_ALTIN)], akis: [["bloomberg"], ["cnbc"], ["wsj"], ["ft"]], re: RE_ALTIN },
-  SPY: { gn: [gnSite("stocks Wall Street", S_PIYASA), gnSite("Federal Reserve", S_PIYASA)],
-    akis: [["cnbc"], ["marketwatch"], ["wsj"], ["ft"], ["bloomberg"], ["fed", null], ["ecb", /monetary policy|interest rate|press conference/i]],
-    re: /s&p|wall street|\bfed\b|federal reserve|fomc|stocks|equities|\bdow\b|treasur|yields?|inflation|payroll|jobs report|monetary policy|interest rate/i },
-  QQQ: { gn: [gnSite("Nasdaq tech stocks", S_PIYASA)], akis: [["cnbc"], ["marketwatch"], ["wsj"], ["bloomberg"]],
-    re: /nasdaq|tech stocks|technology stocks|nvidia|apple|microsoft|alphabet|amazon|\bmeta\b|semiconductor|chipmakers?/i },
+  // v1.49.1: S&P 500 ve Nasdaq 100 başlıkları toplanmıyor (uygulamada yoklar)
   BIST: { gn: [gnSite("Turkey lira OR \"Borsa Istanbul\" OR \"Turkish central bank\" OR \"Turkish stocks\"", S_TR)],
     akis: [["aa", RE_TR], ["aaEn", RE_TR_EN], ["tcmb", null]], re: RE_TR }
 };
@@ -458,8 +454,9 @@ async function kalshi() {
 
 // Kalshi fiyat piyasaları (gün içi): "bugün 17:00 ET'de fiyat X'in üstünde mi" merdivenleri. Varlık başına aday seriler (ilk çalışan);
 // açık olaylardan önce New York 17:00 kapanışlı en yakını, yoksa en yakın kapanış. Uygulama ortanca ve olasılık çıkarır.
-const KALSHI_FIYAT = { BTC: ["KXBTCD"], ETH: ["KXETHD"], SPY: ["KXINXU", "KXINX"], QQQ: ["KXNASDAQ100U", "KXNASDAQ100"], XAU: ["KXGOLDD", "KXGOLD", "GOLD"] };
-const KALSHI_SAAT = { BTC: 17, ETH: 17, SPY: 16, QQQ: 16, XAU: 17 };              // New York saati: kripto 17:00, endeks kapanışı 16:00
+// v1.49.1: S&P ve Nasdaq merdivenleri çıktı
+const KALSHI_FIYAT = { BTC: ["KXBTCD"], ETH: ["KXETHD"], XAU: ["KXGOLDD", "KXGOLD", "GOLD"] };
+const KALSHI_SAAT = { BTC: 17, ETH: 17, XAU: 17 };                                 // New York saati 17:00
 async function kalshiFiyat() {
   const n = v => v == null || v === "" ? null : +v;
   const fiyat = (m, c, dl) => { const a = n(m[dl]); if (a != null) return a; const x = n(m[c]); return x != null ? x / 100 : null; };
@@ -511,7 +508,7 @@ async function main() {
   let ev = null; try { ev = await tut("evds", 6 * 36e5, evds, P0.evds); } catch (e) { hatalar.push("evds: " + e.message); }
   let hl = null; try { hl = await tut("hl", 24 * 36e5, hlAdres, P0.hl && P0.hl.s === 2 ? P0.hl : null); } catch (e) { hatalar.push("hl: " + e.message); hl = P0.hl || null; }
   const [bb, vx, kl] = await Promise.all([tut("basabas", 3 * 36e5, basabas, P0.basabas).catch(e => { hatalar.push("başabaş: " + e.message); return prevAll && prevAll.basabas || null; }),
-    vixVade().catch(e => { hatalar.push("vix: " + e.message); return prevAll && prevAll.vix || null; }),
+    Promise.resolve(null),                                                     // v1.49.1: VIX vade yapısı yalnız S&P / Nasdaq içindi
     kalshi().catch(e => { hatalar.push("kalshi: " + e.message); return null; })]);
   if (kl) kl.fiyat = await kalshiFiyat().catch(e => { hatalar.push("kalshi fiyat: " + e.message); return {}; });
   if (!ev && prevAll && prevAll.evds) ev = prevAll.evds;

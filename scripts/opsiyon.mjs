@@ -1,15 +1,15 @@
 // tyovi — option flow toplayıcı. GitHub Actions 10 dakikada bir çalıştırır (açık depo tyovi-veri; Claude kullanmaz).
 // Çıktı: opsiyon.json ("veri" dalına yazılır; uygulama GitHub API ile okur).
-// Kaynaklar (anahtarsız): BTC → Deribit, olmazsa OKX, olmazsa Binance opsiyon. ABD → CBOE gecikmeli zincir (15 dk).
+// Kaynaklar (anahtarsız): BTC → Deribit, olmazsa OKX, olmazsa Binance opsiyon. Altın → CBOE gecikmeli GLD zinciri (15 dk).
+// v1.49.1 (kullanıcı: "sadece BIST + altın + Ethereum + BTC"; "her şeyin verisini çekmeyelim"): S&P (SPY + SPX), Nasdaq (QQQ + NDX),
+// büyük ABD şirketleri ve uygulamanın ABD hisseleri toplanmıyor. Dosya 216 KB → ~30 KB; bildirim sunucusu da bunu çözüyor.
 // Üç modül için: Maruziyet → net gamma (GEX), strike'lara göre gamma profili, gamma dönümü, call/put duvarı, max pain;
 // Oynaklık → vadelere göre ATM IV (vade yapısı), beklenen hareket, 25 delta skew; Akış → günlük prim (call/put),
 // put/call hacmi, ABD'de olağandışı sözleşmeler, BTC'de Deribit'te son işlemlerin yönü ve büyük/blok işlemler.
 import fs from "node:fs";
 
 const NOW = Date.now(), DAY = 864e5;
-const US_BASE = ["SPY", "QQQ", "GLD"];
-// Nasdaq / S&P'yi taşıyan büyük şirketler: bilanço öncesi opsiyonların beklediği hareket (uygulama bilanço tarihini Finnhub'dan alır)
-const MEGA = ["NVDA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "AVGO", "TSLA"];
+const US_BASE = ["GLD"];                  // altının opsiyon seviyeleri GLD'den (uygulama XAU/GLD oranıyla çevirir)
 
 async function getJson(url, ms = 25000) {
   const c = new AbortController(), t = setTimeout(() => c.abort(), ms);
@@ -291,17 +291,9 @@ async function main() {
     }
   }
 
-  // ABD: sabitler + uygulamanın listesindeki ABD hisseleri (snapshot)
-  let extra = [];
-  try {
-    const snap = JSON.parse(fs.readFileSync("data/snapshot.json", "utf8"));
-    extra = [...(snap.holdings || []), ...(snap.candidates || [])].map(x => String(x.tv || ""))
-      .filter(tv => tv && !/^BIST:/.test(tv)).map(tv => tv.split(":").pop());
-  } catch (e) {}
-  const roots = [...new Set([...US_BASE, ...MEGA, ...extra])].slice(0, 24);
-  // S&P ve Nasdaq: asıl opsiyon piyasası endeksin kendisi (SPX, SPY'nin ~13 katı; NDX). Endeks opsiyonları ETF ölçeğine çevrilip
-  // ETF'ninkilerle birleştirilir: K × r, açık poz./hacim ÷ r (r = ETF / endeks) → $ gamma, duvar ve max pain aynı kalır.
-  const IDXOPT = { SPY: "_SPX", QQQ: "_NDX" }, P = {};
+  // ABD zinciri: yalnız GLD (v1.49.1). Endeks opsiyonu birleştirme (SPY + SPX, QQQ + NDX) kodu duruyor; liste boş.
+  const roots = US_BASE.slice();
+  const IDXOPT = {}, P = {};
   for (const ix of Object.values(IDXOPT)) {
     try { P[ix] = cboeParse(ix, await getJson("https://cdn.cboe.com/api/global/delayed_quotes/options/" + ix + ".json", 60000));
       out.olagandisi.push(...unusual(ix.replace("_", ""), P[ix].S, P[ix].cs)); }
