@@ -537,29 +537,6 @@ async function earn() {
   catch (e) { hatalar.push("earn BNSOL: " + e.message); }
   return { at: NOW, n: Object.keys(a).length, a };
 }
-// ---- Satın alma gücü paritesi (v1.54.0; kullanıcı 2026-10-17: "adil değer kısmına farklı pariteler eklenebilir") ----
-// IMF World Economic Outlook "PPP implied conversion rate" (PPPEX; ulusal para / uluslararası dolar, ABD = 1) bu yılın değeri (IMF tahmini
-// dahil). IMF DataMapper API'si anahtarsız ama tarayıcıya kapalı (CORS yok) → burada. Euro bölgesi için IMF toplamı yok: üye ülkelerin
-// PPP'si, PPP'li GSYH'lerine (PPPGDP) göre tartılır (euro bölgesi PPP = Σ ulusal GSYH / Σ PPP'li GSYH). Kurların uzun vadeli çapası;
-// haftada bir (IMF yılda iki kez günceller).
-const EURO_UYE = ["AUT", "BEL", "BGR", "HRV", "CYP", "EST", "FIN", "FRA", "DEU", "GRC", "IRL", "ITA", "LVA", "LTU", "LUX", "MLT", "NLD", "PRT", "SVK", "SVN", "ESP"];
-async function ppp() {
-  const yil = new Date(NOW).getUTCFullYear();
-  // GitHub'dan ilk denemede 403 (2026-10-17); tarayıcı başlıklarıyla denenir, olmazsa uygulamadaki sabit (adil.js PPP_IMF) kullanılır
-  const H = Object.assign({ Accept: "application/json, text/plain, */*", Referer: "https://www.imf.org/external/datamapper/PPPEX@WEO/OEMDC/ADVEC/WEOWORLD", "Accept-Language": "en-US,en;q=0.9" }, UA);
-  const al = async (u) => { const c = new AbortController(), t = setTimeout(() => c.abort(), 30000);
-    try { const r = await fetch(u, { signal: c.signal, headers: H }); if (!r.ok) throw new Error(r.status + ""); return await r.json(); } finally { clearTimeout(t); } };
-  const [A, G] = await Promise.all([al("https://www.imf.org/external/datamapper/api/v1/PPPEX"), al("https://www.imf.org/external/datamapper/api/v1/PPPGDP")]);
-  const X = A && A.values && A.values.PPPEX, Y = G && G.values && G.values.PPPGDP;
-  if (!X || !Y) throw new Error("IMF yanıtı boş");
-  const deger = (k) => (X[k] && +X[k][yil] > 0 ? +X[k][yil] : null);
-  let pay = 0, payda = 0;
-  for (const k of EURO_UYE) { const p = deger(k), g = Y[k] && +Y[k][yil]; if (p && g > 0) { pay += p * g; payda += g; } }
-  const v = { EA: payda > 0 ? Math.round(pay / payda * 1e4) / 1e4 : null };
-  for (const k of ["TUR", "GBR", "JPN", "CHE", "AUS", "CAN", "CHN", "NZL"]) v[k] = deger(k);
-  if (!v.EA || !v.TUR) throw new Error("eksik değer");
-  return { yil, at: NOW, v };
-}
 async function main() {
   let prevAll = null; try { prevAll = JSON.parse(fs.readFileSync("piyasa.prev.json", "utf8")); } catch (e) {}
   // 10 dakikalık düzende yavaş değişen kaynaklar önceki dosyadan (zaman damgası "zaman"): takvim ve ETF 60 dk, haber 20 dk, reel faiz ve
@@ -577,7 +554,6 @@ async function main() {
     Promise.resolve(null),                                                     // v1.49.1: VIX vade yapısı yalnız S&P / Nasdaq içindi
     kalshi().catch(e => { hatalar.push("kalshi: " + e.message); return null; })]);
   if (kl) kl.fiyat = await kalshiFiyat().catch(e => { hatalar.push("kalshi fiyat: " + e.message); return {}; });
-  let pp = null; try { pp = await tut("ppp", 7 * DAY, ppp, P0.ppp); } catch (e) { hatalar.push("ppp: " + e.message); pp = P0.ppp || null; }   // v1.54.0
   // Binance Earn (v1.53.0): ayrı dosya (earn.json; piyasa.json'u okuyan bildirim sunucusu bunu çözmesin). Önceki: earn.prev.json.
   // Zaman anahtarı "earn3": biçim değişince (zincir üstü staking, kademe) eski önbellek beklenmeden bir kez yenilensin.
   let er = null; try { er = JSON.parse(fs.readFileSync("earn.prev.json", "utf8")); } catch (e) {}
@@ -591,7 +567,7 @@ async function main() {
     for (const k of ["BTC", "ETH"]) if (!ef[k] && prev.etf && prev.etf[k]) ef[k] = prev.etf[k];
   } catch (e) {}
   if (!mk) try { mk = JSON.parse(fs.readFileSync("piyasa.prev.json", "utf8")).makro || null; } catch (e) {}
-  const out = { at: new Date(NOW).toISOString(), takvim: tk, etf: ef, haber: hb, makro: mk, gundem: gd, evds: ev, basabas: bb, vix: vx, kalshi: kl, hl, ppp: pp, zaman, hatalar };
+  const out = { at: new Date(NOW).toISOString(), takvim: tk, etf: ef, haber: hb, makro: mk, gundem: gd, evds: ev, basabas: bb, vix: vx, kalshi: kl, hl, zaman, hatalar };
   fs.writeFileSync("piyasa.json", JSON.stringify(out));
   console.log("takvim:", tk.length, "· etf:", Object.keys(ef).map(k => k + " " + (ef[k] || []).length).join(", "),
     "· haber:", Object.keys(hb).map(k => k + " " + hb[k].length).join(", "),
