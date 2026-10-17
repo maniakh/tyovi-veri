@@ -498,8 +498,10 @@ async function hlAdres() {
 // Binance'in Earn sayfasının herkese açık ucu (anahtarsız; tarayıcıya kapalı: yanıtta CORS başlığı yok → burada toplanır). Tüm varlıklar
 // 100'lük sayfalarla (~412 varlık, 5 istek). Varlık başına: esnek (Flexible, LENDING_FLEXIBLE) APR ve en iyi kilitli staking
 // (POS_FIXED) APR'si + gün; ETH ve SOL'de ayrıca zincir üstü staking (WBETH: pos/cftoken getPurchasableProject; BNSOL: restaking
-// project/detail — Binance'in staking sayfalarının uçları). Biçim a[varlık] = [esnek, kilitli, gün, zincir] (yüzde, 2 ondalık; yoksa
-// null). Oranlar günde bir değişir → 3 saatte bir (tut "earn").
+// project/detail — Binance'in staking sayfalarının uçları). Biçim a[varlık] = [esnek, kilitli, gün, zincir, kademe, kademeSınırı]
+// (yüzde, 2 ondalık; yoksa null). esnek = piyasa oranı (marketApr); bazı varlıklarda ilk küçük tutara ek oran var ("kademe": o tutara
+// kadar toplam oran, "kademeSınırı": adet; ör. USDT %2,39, ilk 500 USDT %6,39) — öne çıkan "apy" bunu içerdiği için ayrı tutulur.
+// Oranlar günde bir değişir → 3 saatte bir (tut "earn3").
 async function earn() {
   const U = "https://www.binance.com/bapi/earn/v1/friendly/finance-earn/simple/product/simpleEarnProducts?pageSize=100&pageIndex=";
   const a = {}; let toplam = 0;
@@ -509,18 +511,26 @@ async function earn() {
     toplam = +(d && d.total) || toplam;
     for (const x of L) {
       const v = String(x.asset || "").toUpperCase(); if (!v) continue;
-      let es = null, ki = null, gun = 0;
+      let es = null, ki = null, gun = 0, kd = null, kdS = null;
       for (const q of x.productDetailList || []) {
         const r = +q.apy; if (!(r > 0)) continue;
-        if (q.productType === "LENDING_FLEXIBLE") es = Math.max(es || 0, r);
+        if (q.productType === "LENDING_FLEXIBLE") {
+          const m = +q.marketApr > 0 ? +q.marketApr : r;                 // kademe eki olmadan
+          if (es == null || m > es) {
+            es = m; kd = null; kdS = null;
+            const T = q.hasTierInterest && Array.isArray(q.apyTierOption) ? q.apyTierOption[0] : null;
+            if (T && r > m + 1e-6 && +T.endAmount > 0) { kd = r; kdS = +T.endAmount; }
+          }
+        }
         else if (q.productType === "POS_FIXED" && (ki == null || r > ki)) { ki = r; gun = +q.duration || 0; }
       }
-      if (es != null || ki != null) a[v] = [es == null ? null : Math.round(es * 1e4) / 100, ki == null ? null : Math.round(ki * 1e4) / 100, gun];
+      const y = (r) => (r == null ? null : Math.round(r * 1e4) / 100);
+      if (es != null || ki != null) a[v] = [y(es), y(ki), gun, null, y(kd), kdS];
     }
     if (!L.length || p * 100 >= toplam) break;
   }
   if (Object.keys(a).length < 50) throw new Error("az varlık " + Object.keys(a).length);
-  const zincir = (v, r) => { if (!(r > 0)) return; const x = a[v] || (a[v] = [null, null, 0]); x[3] = Math.round(r * 1e4) / 100; };
+  const zincir = (v, r) => { if (!(r > 0)) return; const x = a[v] || (a[v] = [null, null, 0, null, null, null]); x[3] = Math.round(r * 1e4) / 100; };
   try { const j = await get("https://www.binance.com/bapi/earn/v1/public/pos/cftoken/project/getPurchasableProject"); zincir("ETH", +(j && j.data && j.data.annualInterestRate)); }
   catch (e) { hatalar.push("earn WBETH: " + e.message); }
   try { const j = await get("https://www.binance.com/bapi/earn/v1/friendly/earn/restaking/project/detail"); zincir("SOL", +(j && j.data && (j.data.totalApr || j.data.apy))); }
@@ -545,9 +555,9 @@ async function main() {
     kalshi().catch(e => { hatalar.push("kalshi: " + e.message); return null; })]);
   if (kl) kl.fiyat = await kalshiFiyat().catch(e => { hatalar.push("kalshi fiyat: " + e.message); return {}; });
   // Binance Earn (v1.53.0): ayrı dosya (earn.json; piyasa.json'u okuyan bildirim sunucusu bunu çözmesin). Önceki: earn.prev.json.
-  // Zaman anahtarı "earn2": zincir üstü staking (WBETH, BNSOL) eklenince eski önbellek beklenmeden bir kez yenilensin.
+  // Zaman anahtarı "earn3": biçim değişince (zincir üstü staking, kademe) eski önbellek beklenmeden bir kez yenilensin.
   let er = null; try { er = JSON.parse(fs.readFileSync("earn.prev.json", "utf8")); } catch (e) {}
-  try { const e2 = await tut("earn2", 3 * 36e5, earn, er); if (e2) { er = e2; fs.writeFileSync("earn.json", JSON.stringify(e2)); } }
+  try { const e2 = await tut("earn3", 3 * 36e5, earn, er); if (e2) { er = e2; fs.writeFileSync("earn.json", JSON.stringify(e2)); } }
   catch (e) { hatalar.push("earn: " + e.message); if (er) fs.writeFileSync("earn.json", JSON.stringify(er)); }
   if (!ev && prevAll && prevAll.evds) ev = prevAll.evds;
   // Kaynak düşerse bir önceki çalışmanın verisi kullanılır (iş akışı veri dalındaki eski dosyayı piyasa.prev.json olarak indirir)
