@@ -27,6 +27,7 @@ jobs:
         run: |
           git fetch -q --depth=1 origin veri && git show origin/veri:piyasa.json > piyasa.prev.json || true
           git show origin/veri:earn.json > earn.prev.json 2>/dev/null || rm -f earn.prev.json
+          git show origin/veri:adil.json > adil.prev.json 2>/dev/null || rm -f adil.prev.json
           node scripts/piyasa.mjs
       - name: Uyarılar (balina hareketleri, kritik haber; telefonun arka plan görevi okur)
         continue-on-error: true
@@ -40,7 +41,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p /tmp/veri && cp opsiyon.json /tmp/veri/
-          for f in piyasa.json earn.json balina.json balina-snap.json uyari.json; do [ -f "$f" ] && cp "$f" /tmp/veri/ || true; done
+          for f in piyasa.json earn.json adil.json balina.json balina-snap.json uyari.json; do [ -f "$f" ] && cp "$f" /tmp/veri/ || true; done
           cd /tmp/veri
           git init -q -b veri
           git config user.name "tyovi-veri"

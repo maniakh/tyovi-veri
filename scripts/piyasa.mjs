@@ -537,6 +537,50 @@ async function earn() {
   catch (e) { hatalar.push("earn BNSOL: " + e.message); }
   return { at: NOW, n: Object.keys(a).length, a };
 }
+// ---- Coin adil değeri (v1.54.1; kullanıcı 2026-10-17: "adil değeri olan coinler, algoritma varsa onunla, InvestingPro'daki gibi;
+// fırsat olanlar orada çıksın") ----
+// Teknik adil değer (temel değerleme değil): Binance vadeli USDT sürekli coinlerde (dayanağı coin, işlemde, 24 sa hacmi ≥ 20 mn $,
+// sabit paralar hariç) günlük mumlardan üç model:
+//   trend    : 200 günlük basit ortalama (Mayer çarpanının paydası; BTC'de 0,8 altı tarihsel olarak ucuz bölge sayılır)
+//   maliyet  : son 365 günün hacim ağırlıklı ortalama fiyatı (Σ USDT hacmi / Σ adet; yıl içinde alanların ortalama maliyeti)
+//   ortanca  : son 365 günün kapanış ortancası
+// Adil değer = üçünün ortalaması, aralık = en düşük – en yüksek. En az 200 günlük geçmiş ister. 6 saatte bir; çıktı adil.json
+// { at, kaynak, n, c:{ COIN:[adil, alt, üst, fiyat, gün, 24 sa hacim (mn $), 365 gün tepesi] } }. "Fırsat" ayrımını uygulama yapar
+// (adil.js: üç model de fiyatın ≥ %10 üstünde, adile göre ≥ %25 ucuz, ≥ 300 gün geçmiş, fiyat yıllık tepenin ≥ %20'si — pompalanıp
+// çökmüş coinlerde ortalamalar şişer, onlar fırsat sayılmaz). Kaynak sırası: fapi.binance.com → www.binance.com/fapi
+// (GitHub'ın ABD sunucularından fapi engelli olabilir).
+async function coinAdil() {
+  const KOK = ["https://fapi.binance.com", "https://www.binance.com"];
+  let kok = null, info = null;
+  for (const k of KOK) { try { info = await get(k + "/fapi/v1/exchangeInfo", "json", 30000); if (info && info.symbols) { kok = k; break; } } catch (e) { /* sıradaki */ } }
+  if (!kok) throw new Error("Binance vadeli erişilemedi");
+  const coin = new Set(info.symbols.filter(x => x.contractType === "PERPETUAL" && x.underlyingType === "COIN" && x.quoteAsset === "USDT" && x.status === "TRADING").map(x => x.symbol));
+  const T = await get(kok + "/fapi/v1/ticker/24hr", "json", 30000);
+  const STABIL = /^(USDC|FDUSD|TUSD|USDP|DAI|BUSD|USDE|PYUSD|USD1|EUR|EURI|AEUR|XUSD|RLUSD|BFUSD|USDS)USDT$/;
+  const L = (T || []).filter(t => coin.has(t.symbol) && /^[A-Z0-9]+USDT$/.test(t.symbol) && !STABIL.test(t.symbol) && +t.quoteVolume >= 20e6 && +t.lastPrice > 0)
+    .sort((a, b) => +b.quoteVolume - +a.quoteVolume).slice(0, 150);
+  const c = {}; let i = 0;
+  const isci = async () => {
+    while (i < L.length) {
+      const t = L[i++];
+      try {
+        const R = await get(kok + "/fapi/v1/klines?symbol=" + t.symbol + "&interval=1d&limit=365", "json", 20000);
+        if (!Array.isArray(R) || R.length < 200) continue;
+        const kap = R.slice(0, -1).map(r => +r[4]), son = kap.length;              // yalnız kapanmış günler
+        const s200 = kap.slice(-200).reduce((a, b) => a + b, 0) / 200;
+        let qv = 0, bv = 0, tepe = 0; for (const r of R) { qv += +r[7]; bv += +r[5]; tepe = Math.max(tepe, +r[2]); }
+        const vwap = bv > 0 ? qv / bv : null;
+        const o = kap.slice().sort((a, b) => a - b), med = o.length % 2 ? o[(o.length - 1) / 2] : (o[o.length / 2 - 1] + o[o.length / 2]) / 2;
+        const M = [s200, vwap, med].filter(x => x > 0); if (M.length < 3) continue;
+        const fv = M.reduce((a, b) => a + b, 0) / 3, yu = (x) => +x.toPrecision(5);
+        c[t.symbol.replace(/USDT$/, "")] = [yu(fv), yu(Math.min(...M)), yu(Math.max(...M)), yu(+t.lastPrice), son, Math.round(+t.quoteVolume / 1e6), yu(tepe)];
+      } catch (e) { /* bu coin atlanır */ }
+    }
+  };
+  await Promise.all([isci(), isci(), isci(), isci()]);
+  if (Object.keys(c).length < 20) throw new Error("az coin " + Object.keys(c).length);
+  return { at: NOW, kaynak: kok.replace("https://", ""), n: Object.keys(c).length, c };
+}
 async function main() {
   let prevAll = null; try { prevAll = JSON.parse(fs.readFileSync("piyasa.prev.json", "utf8")); } catch (e) {}
   // 10 dakikalık düzende yavaş değişen kaynaklar önceki dosyadan (zaman damgası "zaman"): takvim ve ETF 60 dk, haber 20 dk, reel faiz ve
@@ -554,6 +598,10 @@ async function main() {
     Promise.resolve(null),                                                     // v1.49.1: VIX vade yapısı yalnız S&P / Nasdaq içindi
     kalshi().catch(e => { hatalar.push("kalshi: " + e.message); return null; })]);
   if (kl) kl.fiyat = await kalshiFiyat().catch(e => { hatalar.push("kalshi fiyat: " + e.message); return {}; });
+  // Coin adil değeri (v1.54.1): ayrı dosya adil.json, 6 saatte bir; önceki adil.prev.json
+  let ca = null; try { ca = JSON.parse(fs.readFileSync("adil.prev.json", "utf8")); } catch (e) {}
+  try { const c2 = await tut("cadil", 6 * 36e5, coinAdil, ca); if (c2) { ca = c2; fs.writeFileSync("adil.json", JSON.stringify(c2)); } }
+  catch (e) { hatalar.push("coin adil: " + e.message); if (ca) fs.writeFileSync("adil.json", JSON.stringify(ca)); }
   // Binance Earn (v1.53.0): ayrı dosya (earn.json; piyasa.json'u okuyan bildirim sunucusu bunu çözmesin). Önceki: earn.prev.json.
   // Zaman anahtarı "earn3": biçim değişince (zincir üstü staking, kademe) eski önbellek beklenmeden bir kez yenilensin.
   let er = null; try { er = JSON.parse(fs.readFileSync("earn.prev.json", "utf8")); } catch (e) {}
@@ -571,6 +619,6 @@ async function main() {
   fs.writeFileSync("piyasa.json", JSON.stringify(out));
   console.log("takvim:", tk.length, "· etf:", Object.keys(ef).map(k => k + " " + (ef[k] || []).length).join(", "),
     "· haber:", Object.keys(hb).map(k => k + " " + hb[k].length).join(", "),
-    "· earn:", er ? er.n + " varlık" : "yok", "· gündem:", gd ? gd.aciklama.length + " olay, " + Object.keys(gd.gecmis).length + " gösterge, nowcast " + (gd.nowcast ? gd.nowcast.ay + " TÜFE " + gd.nowcast.cpi : "yok") : "yok", "· hatalar:", hatalar.join(" | ") || "yok");
+    "· earn:", er ? er.n + " varlık" : "yok", "· coin adil:", ca ? ca.n + " coin (" + ca.kaynak + ")" : "yok", "· gündem:", gd ? gd.aciklama.length + " olay, " + Object.keys(gd.gecmis).length + " gösterge, nowcast " + (gd.nowcast ? gd.nowcast.ay + " TÜFE " + gd.nowcast.cpi : "yok") : "yok", "· hatalar:", hatalar.join(" | ") || "yok");
 }
 main();
