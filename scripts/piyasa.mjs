@@ -545,8 +545,11 @@ async function earn() {
 const EURO_UYE = ["AUT", "BEL", "BGR", "HRV", "CYP", "EST", "FIN", "FRA", "DEU", "GRC", "IRL", "ITA", "LVA", "LTU", "LUX", "MLT", "NLD", "PRT", "SVK", "SVN", "ESP"];
 async function ppp() {
   const yil = new Date(NOW).getUTCFullYear();
-  const [A, G] = await Promise.all([get("https://www.imf.org/external/datamapper/api/v1/PPPEX", "json", 30000),
-    get("https://www.imf.org/external/datamapper/api/v1/PPPGDP", "json", 30000)]);
+  // GitHub'dan ilk denemede 403 (2026-10-17); tarayıcı başlıklarıyla denenir, olmazsa uygulamadaki sabit (adil.js PPP_IMF) kullanılır
+  const H = Object.assign({ Accept: "application/json, text/plain, */*", Referer: "https://www.imf.org/external/datamapper/PPPEX@WEO/OEMDC/ADVEC/WEOWORLD", "Accept-Language": "en-US,en;q=0.9" }, UA);
+  const al = async (u) => { const c = new AbortController(), t = setTimeout(() => c.abort(), 30000);
+    try { const r = await fetch(u, { signal: c.signal, headers: H }); if (!r.ok) throw new Error(r.status + ""); return await r.json(); } finally { clearTimeout(t); } };
+  const [A, G] = await Promise.all([al("https://www.imf.org/external/datamapper/api/v1/PPPEX"), al("https://www.imf.org/external/datamapper/api/v1/PPPGDP")]);
   const X = A && A.values && A.values.PPPEX, Y = G && G.values && G.values.PPPGDP;
   if (!X || !Y) throw new Error("IMF yanıtı boş");
   const deger = (k) => (X[k] && +X[k][yil] > 0 ? +X[k][yil] : null);
