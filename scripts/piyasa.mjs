@@ -288,11 +288,19 @@ const tvOlay = e => ({ t: Date.parse(e.date), id: gid(e), ad: e.title, ulke: e.c
 const NC_SERI = { cpi: "CPI Inflation", ccpi: "Core CPI Inflation", pce: "PCE Inflation", cpce: "Core PCE Inflation" };
 const ncSon = (ch, ad) => { const s = (ch.dataset || []).find(d => d.seriesname === ad); const v = s && (s.data || []).filter(p => p.value !== undefined && p.value !== ""); return v && v.length ? +v[v.length - 1].value : null; };
 const ncTarih = (ch, ad) => { const s = (ch.dataset || []).find(d => d.seriesname === ad); const v = s && (s.data || []).filter(p => p.value !== undefined && p.value !== ""); const m = v && v.length && String(v[v.length - 1].tooltext || "").match(/(\d\d)\/(\d\d)/); return m ? m[1] + "/" + m[2] : null; };
+// Piyasaya etkisi günlerce süren veriler (v1.54.5; kullanıcı: "eski çok önemli haberleri üzerinden 1 hafta geçmeden kaldırmayalım, ama aşırı
+// önemliler, piyasaya etkisi devam edecek tarzdan"). Uygulamadaki cokOnemli (gundem.js) ile aynı.
+const COK_ONEMLI = { US: /^(Fed Interest Rate Decision|FOMC Minutes|Non Farm Payrolls|Inflation Rate (MoM|YoY)|Core Inflation Rate (MoM|YoY)|Core PCE Price Index (MoM|YoY)|PCE Price Index (MoM|YoY)|GDP Growth Rate QoQ.*|Retail Sales MoM|Unemployment Rate)$/i,
+  TR: /^(TCMB Interest Rate Decision|Inflation Rate (MoM|YoY))$/i, EU: /ECB Interest Rate Decision|Deposit Facility Rate/i, GB: /BoE Interest Rate Decision/i,
+  JP: /BoJ Interest Rate Decision/i, CN: /^GDP Growth Rate YoY$/i };
 async function gundem(prev) {
   const out = { aciklama: [], gecmis: {}, nowcast: null, fomc: [] };
   // 1) Son 3 gün + önümüzdeki 10 gün: ABD ve Türkiye orta ve yüksek, diğer büyükler yalnız yüksek
   const L = await tvCal(NOW - 3 * DAY, NOW + 10 * DAY, "US,TR,EU,GB,JP,CN", 0);
   out.aciklama = L.filter(e => e.country === "US" || e.country === "TR" || e.importance >= 1).map(tvOlay).filter(e => isFinite(e.t)).sort((a, b) => a.t - b.t);
+  // Son 8 günün çok önemli açıklanmış verileri (uygulama 1 hafta gösterir; aciklama yalnız son 3 gün)
+  try { out.onemli = (await tvCal(NOW - 8 * DAY, NOW, "US,TR,EU,GB,JP,CN", 0)).filter(e => COK_ONEMLI[e.country] && COK_ONEMLI[e.country].test(e.title))
+    .map(tvOlay).filter(e => isFinite(e.t) && e.t < NOW).sort((a, b) => a.t - b.t); } catch (e) { hatalar.push("önemli veriler: " + e.message); out.onemli = (prev && prev.onemli) || []; }
   // Fed ve TCMB karar günleri (önümüzdeki 5 ay; takvimde genelde yalnız sıradaki toplantı görünür); TCMB için beklenti ve önceki de
   try {
     const K = await tvCal(NOW, NOW + 150 * DAY, "US,TR", 0);
