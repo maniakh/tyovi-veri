@@ -115,6 +115,28 @@ async function takvim() {
   return ff.concat(tr).sort((a, b) => a.t - b.t);
 }
 
+// v1.55.0: ForexFactory'nin "gelecek hafta" dosyası çoğu zaman yok (404). 2026-10-18 Cumartesi takvimde yalnız geçen haftadan 2 konuşma
+// kalmıştı → Bugün kartı, olay şeridi, widget'ın "Sıradaki" satırı ve sunucunun takvim bildirimi Pazartesi'nin verilerini göremiyordu.
+// Önümüzdeki 8 günün TradingView olayları (gundem.aciklama: ABD orta + yüksek, diğer büyükler yüksek; Türkiye yüksek) ForexFactory'de
+// aynı ülkede ±10 dk içinde olay yoksa takvime katılır (ForexFactory varken çift sayılmaz).
+const TV_PARA = { US: "USD", EU: "EUR", GB: "GBP", JP: "JPY", CN: "CNY", TR: "TRY" };
+const tvDeger = (v, x) => (v == null ? null : String(v) + (x.olcek || "") + (x.birim === "%" ? "%" : ""));
+function takvimTvKat(ff, ac) {
+  if (!Array.isArray(ac) || !ac.length) return ff;
+  const ek = [];
+  for (const e of ac) {
+    const para = TV_PARA[e.ulke];
+    if (!para || !(e.t > NOW) || e.t > NOW + 8 * DAY) continue;
+    if (!(e.etki >= 1 || (e.ulke === "US" && e.etki >= 0))) continue;
+    if (ff.some((f) => f.ulke === para && Math.abs(f.t - e.t) <= 10 * 60000)) continue;
+    const ad = (ULKE[para] || (para === "TRY" ? "Türkiye" : e.ulke)) + " · " + olayAdi(e.ad);
+    if (ek.some((x) => x.t === e.t && x.ad === ad)) continue;
+    ek.push(Object.assign({ t: e.t, ad, etki: e.etki >= 1 ? "high" : "medium", ulke: para, beklenti: tvDeger(e.f, e), onceki: tvDeger(e.p, e), kaynak: "TradingView" },
+      KONUS.test(e.ad) ? { tur: "konusma" } : {}));
+  }
+  return ff.concat(ek).sort((a, b) => a.t - b.t);
+}
+
 // ---- Spot ETF akışları ----
 async function etfCmc(cat) {
   const j = await get("https://api.coinmarketcap.com/data-api/v3/etf/overview/netflow/chart?category=" + cat + "&range=30d");
@@ -205,9 +227,13 @@ const RE_ALTIN = /gold|bullion|precious metal|altın|\bons\b|xau/i;
 const RE_TR = /borsa|\bbist\b|hisse senedi|tcmb|merkez bankası|para politikası|politika faizi|faiz kararı|\bppk\b|enflasyon|tüfe|üfe|cari (açık|işlemler|denge)|dış ticaret açığı|rezerv|bütçe (açığı|dengesi)|hazine|tahvil|eurobond|\bcds\b|kredi notu|gsyh|büyüme (rakam|oran|verisi)|işsizlik oranı|\bspk\b|\bbddk\b|döviz kuru|lira|turkish (stocks|central bank|inflation|economy|bonds|lira)|turkey.{0,30}(inflation|rate|central bank|stocks|bonds|lira|economy)|borsa istanbul/i;
 const RE_TR_EN = /inflation|interest rate|central bank|lira|stocks|borsa|reserves|budget|current account|bonds?|eurobond|credit rating|\bgdp\b|unemployment/i;
 // Konu: Google News sorguları, doğrudan akışlar [anahtar, süzgeç (null = hepsi)], başlıkta aranan konu
+// v1.55.0 (2026-10-18 gözden geçirme): CoinDesk ve The Block akışları BTC'ye süzgeçsiz giriyordu; "Hex kurucusu tutuklandı", "tokenize hisse
+// itirazı" gibi fiyata ilgisi olmayan başlıklar Bugün kartına düşüyordu. Artık yalnız bitcoin, piyasa, ETF, Fed / faiz, düzenleme,
+// likidasyon, büyük alıcılar ve madencilerle ilgili başlıklar (o günün The Block akışında 20 başlıktan 6'sı kaldı).
+const RE_BTC_PIYASA = /bitcoin|\bbtc\b|crypto (market|prices?|sell-?off|rally|crash|slump)|\betfs?\b|stablecoin|\bfed\b|interest rate|inflation|treasur|tariff|liquidat|whale|miner|strategy|saylor|blackrock|\bsec\b|regulat|outflow|inflow|price|rall(y|ies)|slump|plunge|surge|sell-?off|record high|all-time high/i;
 const KONU = {
-  // Kripto: CoinDesk ve The Block yalnız kripto yazar → akışları süzgeçsiz; genel yayınlarda başlıkta kripto geçmeli
-  BTC: { gn: [gnSite("bitcoin", S_KRIPTO), gnSite("crypto market", S_KRIPTO)], akis: [["coindesk", null], ["theblock", null], ["bloomberg"]],
+  // Kripto: genel yayınlarda başlıkta kripto geçmeli; CoinDesk ve The Block akışlarında BTC için RE_BTC_PIYASA
+  BTC: { gn: [gnSite("bitcoin", S_KRIPTO), gnSite("crypto market", S_KRIPTO)], akis: [["coindesk", RE_BTC_PIYASA], ["theblock", RE_BTC_PIYASA], ["bloomberg"]],
     re: /bitcoin|\bbtc\b|crypto|digital assets?|stablecoin|tokeniz|blockchain/i },
   ETH: { gn: [gnSite("ethereum", S_KRIPTO)], akis: [["coindesk"], ["theblock"]], re: /ethereum|\beth\b|\bether\b|staking|layer[- ]?2|defi|tokeniz|stablecoin|crypto/i },
   XAU: { gn: [gnSite("gold price", S_ALTIN)], akis: [["bloomberg"], ["cnbc"], ["wsj"], ["ft"]], re: RE_ALTIN },
@@ -627,6 +653,7 @@ async function main() {
     for (const k of ["BTC", "ETH"]) if (!ef[k] && prev.etf && prev.etf[k]) ef[k] = prev.etf[k];
   } catch (e) {}
   if (!mk) try { mk = JSON.parse(fs.readFileSync("piyasa.prev.json", "utf8")).makro || null; } catch (e) {}
+  try { tk = takvimTvKat(tk, gd && gd.aciklama); } catch (e) { hatalar.push("takvim tv: " + e.message); }   // v1.55.0
   const out = { at: new Date(NOW).toISOString(), takvim: tk, etf: ef, haber: hb, makro: mk, gundem: gd, evds: ev, basabas: bb, vix: vx, kalshi: kl, hl, zaman, hatalar };
   fs.writeFileSync("piyasa.json", JSON.stringify(out));
   console.log("takvim:", tk.length, "· etf:", Object.keys(ef).map(k => k + " " + (ef[k] || []).length).join(", "),
