@@ -494,6 +494,32 @@ async function hlAdres() {
   if (L.length < 20) throw new Error("az hesap " + L.length);
   return { at: NOW, s: 2, adres: L.map(x => x.a) };
 }
+// ---- Binance Earn oranları (v1.53.0; kullanıcı 2026-10-17: "coinlerin staking oranlarını da yazabilir misin, Binance'teki") ----
+// Binance'in Earn sayfasının herkese açık ucu (anahtarsız; tarayıcıya kapalı: yanıtta CORS başlığı yok → burada toplanır). Tüm varlıklar
+// 100'lük sayfalarla (~412 varlık, 5 istek). Varlık başına: esnek (Flexible, LENDING_FLEXIBLE) APR ve en iyi kilitli staking
+// (POS_FIXED) APR'si + gün. Yüzde, 2 ondalık. Oranlar günde bir değişir → 3 saatte bir (tut "earn").
+async function earn() {
+  const U = "https://www.binance.com/bapi/earn/v1/friendly/finance-earn/simple/product/simpleEarnProducts?pageSize=100&pageIndex=";
+  const a = {}; let toplam = 0;
+  for (let p = 1; p <= 8; p++) {
+    const j = await get(U + p, "json", 20000), d = j && j.data, L = (d && d.list) || [];
+    if (j && j.code && j.code !== "000000") throw new Error("binance " + j.code + " " + (j.message || ""));
+    toplam = +(d && d.total) || toplam;
+    for (const x of L) {
+      const v = String(x.asset || "").toUpperCase(); if (!v) continue;
+      let es = null, ki = null, gun = 0;
+      for (const q of x.productDetailList || []) {
+        const r = +q.apy; if (!(r > 0)) continue;
+        if (q.productType === "LENDING_FLEXIBLE") es = Math.max(es || 0, r);
+        else if (q.productType === "POS_FIXED" && (ki == null || r > ki)) { ki = r; gun = +q.duration || 0; }
+      }
+      if (es != null || ki != null) a[v] = [es == null ? null : Math.round(es * 1e4) / 100, ki == null ? null : Math.round(ki * 1e4) / 100, gun];
+    }
+    if (!L.length || p * 100 >= toplam) break;
+  }
+  if (Object.keys(a).length < 50) throw new Error("az varlık " + Object.keys(a).length);
+  return { at: NOW, n: Object.keys(a).length, a };
+}
 async function main() {
   let prevAll = null; try { prevAll = JSON.parse(fs.readFileSync("piyasa.prev.json", "utf8")); } catch (e) {}
   // 10 dakikalık düzende yavaş değişen kaynaklar önceki dosyadan (zaman damgası "zaman"): takvim ve ETF 60 dk, haber 20 dk, reel faiz ve
@@ -511,6 +537,10 @@ async function main() {
     Promise.resolve(null),                                                     // v1.49.1: VIX vade yapısı yalnız S&P / Nasdaq içindi
     kalshi().catch(e => { hatalar.push("kalshi: " + e.message); return null; })]);
   if (kl) kl.fiyat = await kalshiFiyat().catch(e => { hatalar.push("kalshi fiyat: " + e.message); return {}; });
+  // Binance Earn (v1.53.0): ayrı dosya (earn.json; piyasa.json'u okuyan bildirim sunucusu bunu çözmesin). Önceki: earn.prev.json
+  let er = null; try { er = JSON.parse(fs.readFileSync("earn.prev.json", "utf8")); } catch (e) {}
+  try { const e2 = await tut("earn", 3 * 36e5, earn, er); if (e2) { er = e2; fs.writeFileSync("earn.json", JSON.stringify(e2)); } }
+  catch (e) { hatalar.push("earn: " + e.message); if (er) fs.writeFileSync("earn.json", JSON.stringify(er)); }
   if (!ev && prevAll && prevAll.evds) ev = prevAll.evds;
   // Kaynak düşerse bir önceki çalışmanın verisi kullanılır (iş akışı veri dalındaki eski dosyayı piyasa.prev.json olarak indirir)
   try {
@@ -523,6 +553,6 @@ async function main() {
   fs.writeFileSync("piyasa.json", JSON.stringify(out));
   console.log("takvim:", tk.length, "· etf:", Object.keys(ef).map(k => k + " " + (ef[k] || []).length).join(", "),
     "· haber:", Object.keys(hb).map(k => k + " " + hb[k].length).join(", "),
-    "· gündem:", gd ? gd.aciklama.length + " olay, " + Object.keys(gd.gecmis).length + " gösterge, nowcast " + (gd.nowcast ? gd.nowcast.ay + " TÜFE " + gd.nowcast.cpi : "yok") : "yok", "· hatalar:", hatalar.join(" | ") || "yok");
+    "· earn:", er ? er.n + " varlık" : "yok", "· gündem:", gd ? gd.aciklama.length + " olay, " + Object.keys(gd.gecmis).length + " gösterge, nowcast " + (gd.nowcast ? gd.nowcast.ay + " TÜFE " + gd.nowcast.cpi : "yok") : "yok", "· hatalar:", hatalar.join(" | ") || "yok");
 }
 main();
