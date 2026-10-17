@@ -544,9 +544,10 @@ async function main() {
     Promise.resolve(null),                                                     // v1.49.1: VIX vade yapısı yalnız S&P / Nasdaq içindi
     kalshi().catch(e => { hatalar.push("kalshi: " + e.message); return null; })]);
   if (kl) kl.fiyat = await kalshiFiyat().catch(e => { hatalar.push("kalshi fiyat: " + e.message); return {}; });
-  // Binance Earn (v1.53.0): ayrı dosya (earn.json; piyasa.json'u okuyan bildirim sunucusu bunu çözmesin). Önceki: earn.prev.json
+  // Binance Earn (v1.53.0): ayrı dosya (earn.json; piyasa.json'u okuyan bildirim sunucusu bunu çözmesin). Önceki: earn.prev.json.
+  // Zaman anahtarı "earn2": zincir üstü staking (WBETH, BNSOL) eklenince eski önbellek beklenmeden bir kez yenilensin.
   let er = null; try { er = JSON.parse(fs.readFileSync("earn.prev.json", "utf8")); } catch (e) {}
-  try { const e2 = await tut("earn", 3 * 36e5, earn, er); if (e2) { er = e2; fs.writeFileSync("earn.json", JSON.stringify(e2)); } }
+  try { const e2 = await tut("earn2", 3 * 36e5, earn, er); if (e2) { er = e2; fs.writeFileSync("earn.json", JSON.stringify(e2)); } }
   catch (e) { hatalar.push("earn: " + e.message); if (er) fs.writeFileSync("earn.json", JSON.stringify(er)); }
   if (!ev && prevAll && prevAll.evds) ev = prevAll.evds;
   // Kaynak düşerse bir önceki çalışmanın verisi kullanılır (iş akışı veri dalındaki eski dosyayı piyasa.prev.json olarak indirir)
