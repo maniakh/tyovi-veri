@@ -559,6 +559,10 @@ async function coinAdil() {
   const STABIL = /^(USDC|FDUSD|TUSD|USDP|DAI|BUSD|USDE|PYUSD|USD1|EUR|EURI|AEUR|XUSD|RLUSD|BFUSD|USDS)USDT$/;
   const L = (T || []).filter(t => coin.has(t.symbol) && /^[A-Z0-9]+USDT$/.test(t.symbol) && !STABIL.test(t.symbol) && +t.quoteVolume >= 20e6 && +t.lastPrice > 0)
     .sort((a, b) => +b.quoteVolume - +a.quoteVolume).slice(0, 150);
+  // Altın (v1.54.2, kullanıcı: "altında kabul görmüş yok diyor, illa olmalı, hesapla"): PAXG (1 PAXG = 1 ons altın, 1 yıldan uzun geçmiş;
+  // Binance'in altın vadelisi XAUUSDT daha yeni) — hacim sınırından bağımsız, anahtarı "XAU"
+  const EK = { PAXGUSDT: "XAU" };
+  for (const sm of Object.keys(EK)) { const t = (T || []).find(x => x.symbol === sm); if (t && !L.includes(t)) L.push(t); }
   const c = {}; let i = 0;
   const isci = async () => {
     while (i < L.length) {
@@ -573,7 +577,7 @@ async function coinAdil() {
         const o = kap.slice().sort((a, b) => a - b), med = o.length % 2 ? o[(o.length - 1) / 2] : (o[o.length / 2 - 1] + o[o.length / 2]) / 2;
         const M = [s200, vwap, med].filter(x => x > 0); if (M.length < 3) continue;
         const fv = M.reduce((a, b) => a + b, 0) / 3, yu = (x) => +x.toPrecision(5);
-        c[t.symbol.replace(/USDT$/, "")] = [yu(fv), yu(Math.min(...M)), yu(Math.max(...M)), yu(+t.lastPrice), son, Math.round(+t.quoteVolume / 1e6), yu(tepe)];
+        c[EK[t.symbol] || t.symbol.replace(/USDT$/, "")] = [yu(fv), yu(Math.min(...M)), yu(Math.max(...M)), yu(+t.lastPrice), son, Math.round(+t.quoteVolume / 1e6), yu(tepe)];
       } catch (e) { /* bu coin atlanır */ }
     }
   };
@@ -600,7 +604,7 @@ async function main() {
   if (kl) kl.fiyat = await kalshiFiyat().catch(e => { hatalar.push("kalshi fiyat: " + e.message); return {}; });
   // Coin adil değeri (v1.54.1): ayrı dosya adil.json, 6 saatte bir; önceki adil.prev.json
   let ca = null; try { ca = JSON.parse(fs.readFileSync("adil.prev.json", "utf8")); } catch (e) {}
-  try { const c2 = await tut("cadil", 6 * 36e5, coinAdil, ca); if (c2) { ca = c2; fs.writeFileSync("adil.json", JSON.stringify(c2)); } }
+  try { const c2 = await tut("cadil2", 6 * 36e5, coinAdil, ca); if (c2) { ca = c2; fs.writeFileSync("adil.json", JSON.stringify(c2)); } }
   catch (e) { hatalar.push("coin adil: " + e.message); if (ca) fs.writeFileSync("adil.json", JSON.stringify(ca)); }
   // Binance Earn (v1.53.0): ayrı dosya (earn.json; piyasa.json'u okuyan bildirim sunucusu bunu çözmesin). Önceki: earn.prev.json.
   // Zaman anahtarı "earn3": biçim değişince (zincir üstü staking, kademe) eski önbellek beklenmeden bir kez yenilensin.
