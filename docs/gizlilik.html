@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>tyovi · Gizlilik politikası</title>
+<meta name="description" content="tyovi uygulamasının gizlilik politikası: hangi veriler, nerede, kimlerle ve nasıl silinir.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{ --bg:#000; --kart:#0c0c0e; --kenar:#1f1f23; --yazi:#e6e8ec; --soluk:#9a9aa2; --marka:#5eb1eb; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:var(--bg); color:var(--yazi); font:400 16px/1.65 "Inter Tight",system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:-.005em; }
+  main{ max-width:760px; margin:0 auto; padding:40px 16px 64px; }
+  .ust{ display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
+  .logo{ font-weight:600; font-size:22px; letter-spacing:-.02em; color:#fff; }
+  .logo b{ color:var(--marka); font-weight:600; }
+  h1{ font-size:32px; line-height:1.2; font-weight:600; letter-spacing:-.025em; margin:8px 0 4px; color:#fff; }
+  .tarih{ color:var(--soluk); font-size:14px; margin:0 0 28px; }
+  h2{ font-size:20px; font-weight:600; letter-spacing:-.015em; margin:36px 0 10px; color:#fff; }
+  p, li{ color:var(--yazi); }
+  ul{ padding-left:20px; margin:8px 0; }
+  li{ margin:6px 0; }
+  .kart{ background:var(--kart); border:1px solid var(--kenar); border-radius:18px; padding:18px 20px; margin:16px 0; }
+  .kart p:first-child{ margin-top:0; } .kart p:last-child{ margin-bottom:0; }
+  .soluk{ color:var(--soluk); }
+  a{ color:var(--marka); }
+  table{ width:100%; border-collapse:collapse; font-size:15px; margin:10px 0; }
+  th, td{ text-align:left; vertical-align:top; padding:10px 8px; border-bottom:1px solid var(--kenar); }
+  th{ color:var(--soluk); font-weight:500; font-size:13px; text-transform:uppercase; letter-spacing:.04em; }
+  .tablo{ overflow-x:auto; }
+  hr{ border:0; border-top:1px solid var(--kenar); margin:44px 0 0; }
+  @media (max-width:640px){ main{ padding-top:28px; } h1{ font-size:26px; } table{ font-size:14px; } th, td{ padding:9px 6px; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="ust"><span class="logo">ty<b>o</b>vi</span><span class="soluk">kişisel yatırım paneli</span></div>
+  <h1>Gizlilik politikası</h1>
+  <p class="tarih">Son güncelleme: 17 Ekim 2026</p>
+
+  <div class="kart">
+    <p>tyovi, gün içi işlem yapanlar için kişisel bir yatırım panelidir: piyasa verilerini (opsiyon, order flow, oynaklık, ekonomik takvim) tek ekranda okur. Bu sayfa, uygulamanın (Android ve web) hangi verileri işlediğini, nerede sakladığını, kimlerin görebildiğini ve verilerinin nasıl silineceğini anlatır.</p>
+    <p><b>Kısaca:</b> reklam yok, analiz ya da izleme aracı yok, verilerin satılmaz. Hesap verilerin yalnız uygulamanın çalışması için saklanır. <b>Kişilerim</b> özelliği nedeniyle servet özetin uygulamanın diğer üyelerine görünür (aşağıda).</p>
+  </div>
+
+  <h2>1. Hesap</h2>
+  <p>Hesaplar uygulama içinden açılmaz; yönetici tarafından davetle açılır. Giriş e-posta adresi ve şifreyle yapılır. Kimlik doğrulama Google Firebase Authentication hizmetiyle yapılır; şifren bizim tarafımızdan görülmez ya da saklanmaz.</p>
+
+  <h2>2. Saklanan veriler</h2>
+  <div class="tablo"><table>
+    <tr><th>Veri</th><th>Nerede</th><th>Kim görür</th></tr>
+    <tr><td>Girdiğin bakiyeler, BIST hisselerin ve bütçen, takip listen, fiyat alarmların, grafik çizimlerin, günlük hedefin, ayarların</td><td>Google Firebase (Cloud Firestore), yalnız senin hesabına bağlı belge; ayrıca cihazında</td><td>Yalnız sen (ve bildirim sunucusu, aşağıda)</td></tr>
+    <tr><td>Ad ve profil fotoğrafı</td><td>Firestore</td><td>Uygulamanın üyeleri</td></tr>
+    <tr><td><b>Kişilerim özeti:</b> toplam servet, bugünkü değişim, kaldıraçlı hesap bakiyesi ve kâr/zararı, BIST hisseleri (adet, maliyet, değer), son hareketler (aldı / sattı / bakiye değişti), servet seyri</td><td>Firestore</td><td>Uygulamanın tüm üyeleri</td></tr>
+    <tr><td>Forum yazıların, yanıtların, tepkilerin ve etiketlemelerin</td><td>Firestore</td><td>Uygulamanın tüm üyeleri</td></tr>
+    <tr><td>Kendi girdiğin hizmet anahtarları (ör. Binance salt okunur anahtarı, Finnhub, Coinalyze, GitHub, ntfy konusu)</td><td>Cihazında ve Firestore'da yalnız senin okuyabildiğin ayrı belge</td><td>Yalnız sen; bildirim sunucusu yalnız haber ve likidasyon uyarıları için Finnhub ve Coinalyze anahtarını kullanır</td></tr>
+    <tr><td>Bildirim jetonu (Firebase Cloud Messaging) ve bildirim tercihlerin</td><td>Firestore, senin belgen</td><td>Bildirim sunucusu</td></tr>
+    <tr><td>Hata kayıtları: uygulamada oluşan kod hatasının iletisi ve yeri, uygulama sürümü, cihaz türü (kişisel veri içermez)</td><td>Firestore, senin belgen</td><td>Sen ve hata gidermek için geliştirici</td></tr>
+  </table></div>
+  <p>Uygulama ayrıca hızlı açılmak için piyasa verilerini ve son ekran durumunu cihazının kendi belleğinde (tarayıcı / WebView depolaması) tutar; bunlar cihazından dışarı gönderilmez.</p>
+
+  <h2>3. Bildirim sunucusu</h2>
+  <p>Telefon ekranı kapalıyken de uyarı gelebilmesi için Cloudflare Workers üzerinde çalışan bir sunucu dakikada bir senin belgendeki alarmlara, bildirim tercihlerine ve bildirim jetonuna bakar; piyasa verisini kendisi alır ve gerekirse Firebase Cloud Messaging ile telefonuna bildirim yollar. Aynı sunucu Kişilerim özetini senin kayıtlı verinden hesaplar. Sunucu verini başka bir yere aktarmaz.</p>
+
+  <h2>4. Borsa bağlantısı (isteğe bağlı)</h2>
+  <p>Binance hesabını bağlarsan yalnız <b>okuma</b> izni olan bir API anahtarı girmeni isteriz. Uygulama bu anahtarla, doğrudan senin cihazından Binance'e bağlanıp bakiyeni, açık pozisyonlarını ve stop / kâr al emirlerini okur. Uygulama emir veremez, para çekemez; vadeli işlem ya da para çekme izni olan anahtar kullanmaman istenir. Bağlantıyı Ayarlar'dan istediğin an kaldırabilirsin.</p>
+
+  <h2>5. Piyasa verisi kaynakları</h2>
+  <p>Fiyat ve piyasa verileri cihazından doğrudan herkese açık kaynaklardan alınır (ör. Binance, OKX, Bybit, Hyperliquid, Coinbase, TradingView, Mynet, CFTC, New York Fed). Bu isteklerde senin kişisel verin gönderilmez; ancak her internet isteğinde olduğu gibi bu hizmetler IP adresini görebilir. Bazı veriler (opsiyon, ekonomik takvim, haber başlıkları) GitHub'da çalışan bir toplayıcıyla hazırlanıp herkese açık bir dosyadan okunur; bu dosyada kişisel veri yoktur.</p>
+  <p>Uygulamada <b>veri kullanımı</b> ayarı vardır: mobil veride varsayılan olarak kapalıdır; kapalıyken uygulama giriş ve kendi belgen dışında ağa çıkmaz.</p>
+
+  <h2>6. Android izinleri</h2>
+  <ul>
+    <li><b>İnternet ve ağ durumu:</b> piyasa verisi ve Wi-Fi / mobil veri ayrımı (veri kullanımı ayarı için).</li>
+    <li><b>Bildirim:</b> fiyat alarmı, takvim ve piyasa uyarıları.</li>
+    <li><b>Açılışta başlatma:</b> telefon yeniden başladığında arka plan uyarı işinin sürmesi.</li>
+    <li><b>Titreşim:</b> dokunma geri bildirimi.</li>
+  </ul>
+  <p>Konum, kişiler, kamera, mikrofon ya da reklam kimliği kullanılmaz. Profil fotoğrafı yalnız sen seçersen yüklenir.</p>
+
+  <h2>7. Paylaşım ve satış</h2>
+  <p>Verilerin üçüncü taraflara satılmaz, kiralanmaz, reklam için kullanılmaz. Veriler yalnız yukarıda adı geçen altyapı hizmetlerinde (Google Firebase, Cloudflare) uygulamanın çalışması için işlenir. Yasal bir zorunluluk olmadıkça kimseyle paylaşılmaz.</p>
+
+  <h2>8. Güvenlik</h2>
+  <p>Bağlantılar şifrelidir (HTTPS). Firestore erişim kurallarıyla belgen yalnız sana açıktır; Kişilerim ve forum yalnız oturum açmış üyelere açıktır. Hiçbir sistem tam güvenli değildir; şifreni ve anahtarlarını kimseyle paylaşma.</p>
+
+  <h2>9. Saklama süresi ve silme</h2>
+  <p>Verilerin hesabın açık olduğu sürece saklanır. Hesabının ve tüm verilerinin (belgen, Kişilerim özetin, profilin, forum yazıların, anahtarların) silinmesini istersen hesabına kayıtlı e-posta adresinden <a href="mailto:support@tyovi.com">support@tyovi.com</a> adresine yaz; istek en geç 30 gün içinde yerine getirilir. Cihazındaki veriyi uygulamayı kaldırarak ya da tarayıcı verisini temizleyerek silebilirsin. Binance ve diğer anahtarları Ayarlar'dan kendin kaldırabilirsin.</p>
+
+  <h2>10. Yaş sınırı</h2>
+  <p>Uygulama 18 yaşından küçükler için değildir.</p>
+
+  <h2>11. Yatırım tavsiyesi değildir</h2>
+  <p>tyovi'deki okumalar, olasılıklar ve uyarılar bilgi amaçlıdır; yatırım tavsiyesi değildir. Ölçülmüş bir avantaj iddia edilmez.</p>
+
+  <h2>12. Değişiklikler ve iletişim</h2>
+  <p>Bu politika değişirse güncel sürüm bu sayfada, tarihiyle yayımlanır. Sorular için: <a href="mailto:support@tyovi.com">support@tyovi.com</a></p>
+
+  <hr>
+  <h2 lang="en">Privacy policy (English summary)</h2>
+  <div lang="en">
+    <p>tyovi is a personal trading dashboard (Android and web). Accounts are created by invitation only; sign-in uses Google Firebase Authentication. Your balances, holdings, watch list, alerts, drawings and settings are stored in Google Cloud Firestore in a document only you can read, plus on your device. Your display name, photo, forum posts and a portfolio summary ("Kişilerim": total wealth, holdings, recent changes) are visible to all signed-in members of the app.</p>
+    <p>API keys you enter yourself (for example a read-only Binance key) are stored on your device and in a private document only you can read; the Binance key is used from your device to read balances and open positions only — the app cannot trade or withdraw. A notification server on Cloudflare Workers reads your alerts and notification token to send push notifications via Firebase Cloud Messaging. Crash/error logs (error message, location, app version, device type) are stored in your document for troubleshooting.</p>
+    <p>No ads, no analytics or tracking, no sale of data. Market data is fetched directly from public sources, which may see your IP address. Android permissions: internet and network state, notifications, start on boot, vibration. To delete your account and all data, email <a href="mailto:support@tyovi.com">support@tyovi.com</a> from your account's email address; requests are completed within 30 days. Not intended for users under 18. Not investment advice.</p>
+  </div>
+</main>
+</body>
+</html>
