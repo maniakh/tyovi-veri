@@ -497,7 +497,9 @@ async function hlAdres() {
 // ---- Binance Earn oranları (v1.53.0; kullanıcı 2026-10-17: "coinlerin staking oranlarını da yazabilir misin, Binance'teki") ----
 // Binance'in Earn sayfasının herkese açık ucu (anahtarsız; tarayıcıya kapalı: yanıtta CORS başlığı yok → burada toplanır). Tüm varlıklar
 // 100'lük sayfalarla (~412 varlık, 5 istek). Varlık başına: esnek (Flexible, LENDING_FLEXIBLE) APR ve en iyi kilitli staking
-// (POS_FIXED) APR'si + gün. Yüzde, 2 ondalık. Oranlar günde bir değişir → 3 saatte bir (tut "earn").
+// (POS_FIXED) APR'si + gün; ETH ve SOL'de ayrıca zincir üstü staking (WBETH: pos/cftoken getPurchasableProject; BNSOL: restaking
+// project/detail — Binance'in staking sayfalarının uçları). Biçim a[varlık] = [esnek, kilitli, gün, zincir] (yüzde, 2 ondalık; yoksa
+// null). Oranlar günde bir değişir → 3 saatte bir (tut "earn").
 async function earn() {
   const U = "https://www.binance.com/bapi/earn/v1/friendly/finance-earn/simple/product/simpleEarnProducts?pageSize=100&pageIndex=";
   const a = {}; let toplam = 0;
@@ -518,6 +520,11 @@ async function earn() {
     if (!L.length || p * 100 >= toplam) break;
   }
   if (Object.keys(a).length < 50) throw new Error("az varlık " + Object.keys(a).length);
+  const zincir = (v, r) => { if (!(r > 0)) return; const x = a[v] || (a[v] = [null, null, 0]); x[3] = Math.round(r * 1e4) / 100; };
+  try { const j = await get("https://www.binance.com/bapi/earn/v1/public/pos/cftoken/project/getPurchasableProject"); zincir("ETH", +(j && j.data && j.data.annualInterestRate)); }
+  catch (e) { hatalar.push("earn WBETH: " + e.message); }
+  try { const j = await get("https://www.binance.com/bapi/earn/v1/friendly/earn/restaking/project/detail"); zincir("SOL", +(j && j.data && (j.data.totalApr || j.data.apy))); }
+  catch (e) { hatalar.push("earn BNSOL: " + e.message); }
   return { at: NOW, n: Object.keys(a).length, a };
 }
 async function main() {
