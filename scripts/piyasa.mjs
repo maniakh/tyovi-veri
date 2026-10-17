@@ -232,9 +232,9 @@ const RE_TR_EN = /inflation|interest rate|central bank|lira|stocks|borsa|reserve
 // likidasyon, büyük alıcılar ve madencilerle ilgili başlıklar (o günün The Block akışında 20 başlıktan 6'sı kaldı).
 const RE_BTC_PIYASA = /bitcoin|\bbtc\b|crypto (market|prices?|sell-?off|rally|crash|slump)|\betfs?\b|stablecoin|\bfed\b|interest rate|inflation|treasur|tariff|liquidat|whale|miner|strategy|saylor|blackrock|\bsec\b|regulat|outflow|inflow|price|rall(y|ies)|slump|plunge|surge|sell-?off|record high|all-time high/i;
 const KONU = {
-  // Kripto: genel yayınlarda başlıkta kripto geçmeli; CoinDesk ve The Block akışlarında BTC için RE_BTC_PIYASA
-  BTC: { gn: [gnSite("bitcoin", S_KRIPTO), gnSite("crypto market", S_KRIPTO)], akis: [["coindesk", RE_BTC_PIYASA], ["theblock", RE_BTC_PIYASA], ["bloomberg"]],
-    re: /bitcoin|\bbtc\b|crypto|digital assets?|stablecoin|tokeniz|blockchain/i },
+  // Kripto: BTC'de tüm kaynaklar (Google News, CoinDesk, The Block, Bloomberg) RE_BTC_PIYASA; ETH'de başlıkta Ethereum / kripto geçmeli
+  BTC: { gn: [gnSite("bitcoin", S_KRIPTO), gnSite("crypto market", S_KRIPTO)], akis: [["coindesk"], ["theblock"], ["bloomberg"]],
+    re: RE_BTC_PIYASA },                                         // v1.55.0: Google News ve tüm akışlar aynı süzgeçten
   ETH: { gn: [gnSite("ethereum", S_KRIPTO)], akis: [["coindesk"], ["theblock"]], re: /ethereum|\beth\b|\bether\b|staking|layer[- ]?2|defi|tokeniz|stablecoin|crypto/i },
   XAU: { gn: [gnSite("gold price", S_ALTIN)], akis: [["bloomberg"], ["cnbc"], ["wsj"], ["ft"]], re: RE_ALTIN },
   // v1.49.1: S&P 500 ve Nasdaq 100 başlıkları toplanmıyor (uygulamada yoklar)
