@@ -619,6 +619,23 @@ async function coinAdil() {
   if (Object.keys(c).length < 20) throw new Error("az coin " + Object.keys(c).length);
   return { at: NOW, kaynak: kok.replace("https://", ""), n: Object.keys(c).length, c };
 }
+// Binance son 1 saat kapanışları (v1.62.0): bildirim sunucusu (Cloudflare) Binance'e erişemiyor, alarmları OKX fiyatıyla kontrol ediyor.
+// Sunucu bu kapanışlarla OKX'in aynı dakikaları arasındaki kaymayı (OKX − Binance, ortalama) bulur ve OKX fiyatını Binance'e göre düzeltir
+// (altında kayma ort. −0,26 $; düzeltmesiz Binance tepesine yakın alarmların %21,6'sı kaçıyordu, düzeltmeyle %0,3). Yalnız kapanmış mumlar.
+async function bnKapanis() {
+  const KOK = ["https://fapi.binance.com", "https://www.binance.com"], out = { at: NOW };
+  for (const sm of ["BTCUSDT", "ETHUSDT", "XAUUSDT"]) {
+    for (const k of KOK) {
+      try {
+        const j = await get(k + "/fapi/v1/klines?symbol=" + sm + "&interval=1m&limit=61", "json", 15000);
+        const K = (Array.isArray(j) ? j : []).filter(x => +x[6] < Date.now());           // kapanmış mumlar
+        if (K.length >= 20) { out[sm] = { t0: +K[0][0], c: K.map(x => +x[4]) }; break; }
+      } catch (e) { /* sıradaki kök */ }
+    }
+    if (!out[sm]) hatalar.push("binance kapanış " + sm);
+  }
+  return Object.keys(out).length > 1 ? out : null;
+}
 async function main() {
   let prevAll = null; try { prevAll = JSON.parse(fs.readFileSync("piyasa.prev.json", "utf8")); } catch (e) {}
   // 10 dakikalık düzende yavaş değişen kaynaklar önceki dosyadan (zaman damgası "zaman"): takvim ve ETF 60 dk, haber 20 dk, reel faiz ve
@@ -654,7 +671,8 @@ async function main() {
   } catch (e) {}
   if (!mk) try { mk = JSON.parse(fs.readFileSync("piyasa.prev.json", "utf8")).makro || null; } catch (e) {}
   try { tk = takvimTvKat(tk, gd && gd.aciklama); } catch (e) { hatalar.push("takvim tv: " + e.message); }   // v1.55.0
-  const out = { at: new Date(NOW).toISOString(), takvim: tk, etf: ef, haber: hb, makro: mk, gundem: gd, evds: ev, basabas: bb, vix: vx, kalshi: kl, hl, zaman, hatalar };
+  const bnKap = await bnKapanis().catch(e => { hatalar.push("binance kapanış: " + e.message); return null; });   // v1.62.0
+  const out = { at: new Date(NOW).toISOString(), bnKap, takvim: tk, etf: ef, haber: hb, makro: mk, gundem: gd, evds: ev, basabas: bb, vix: vx, kalshi: kl, hl, zaman, hatalar };
   fs.writeFileSync("piyasa.json", JSON.stringify(out));
   console.log("takvim:", tk.length, "· etf:", Object.keys(ef).map(k => k + " " + (ef[k] || []).length).join(", "),
     "· haber:", Object.keys(hb).map(k => k + " " + hb[k].length).join(", "),
